@@ -788,20 +788,6 @@ function resize_scale()
 	mkscale();
 }
 
-/*
-function canvas_mouseover(evt)
-{
-	if(!waterfall_setup_done) return;
-	//e("webrx-freq-show").style.visibility="visible";	
-}
-
-function canvas_mouseout(evt)
-{
-	if(!waterfall_setup_done) return;
-	//e("webrx-freq-show").style.visibility="hidden";
-}
-*/
-
 function canvas_get_freq_offset(relativeX)
 {
 	rel=(relativeX/canvases[0].clientWidth);
@@ -836,13 +822,32 @@ canvas_drag_min_delta=1;
 canvas_left_mouse_down=false;
 canvas_middle_mouse_down=false;
 
+function isLeftMouseButton(evt)
+{
+	return evt.which == 1 || evt.buttons == 1;
+}
+
+function isMiddleMouseButton(evt)
+{
+	return evt.which == 2 || evt.buttons == 4;
+}
+
+function canvas_mouseclick(evt) {
+	if (isMiddleMouseButton(evt)) 
+		evt.preventDefault();
+}
+
+
+
 function canvas_mousedown(evt) {
 
-	if (evt.which == 1) {
+	if (isLeftMouseButton(evt)) {
 		canvas_left_mousedown(evt);
-	} else if (evt.which == 2) {
+	} else if (isMiddleMouseButton(evt)) {
 		canvas_middle_mousedown(evt);
 	}
+
+	evt.preventDefault();
 }
 
 
@@ -852,7 +857,6 @@ function canvas_left_mousedown(evt)
 	canvas_drag=false;
 	canvas_drag_last_x=canvas_drag_start_x=evt.pageX;
 	canvas_drag_last_y=canvas_drag_start_y=evt.pageY;
-	evt.preventDefault(); //don't show text selection mouse pointer
 }
 
 
@@ -861,22 +865,22 @@ function canvas_middle_mousedown(evt)
 	canvas_middle_mouse_down=true;
 	canvas_zoom_start_level = zoom_level;
 	canvas_zoom_start_y = evt.clientY - evt.target.parentNode.getBoundingClientRect().top;;
-	evt.preventDefault(); //don't show text selection mouse pointer
 }
 
 
 
 function canvas_mousemove(evt)
 {
-	if (evt.which == 1)
+	if (isLeftMouseButton(evt))
 	{
 		canvas_left_mousemove(evt);
 	}
-	else if (evt.which == 2)
+	else if (isMiddleMouseButton(evt))
 	{
 		canvas_middle_mousemove(evt);
-	}	
+	}
 
+	evt.preventDefault();
 }
 
 function canvas_left_mousemove(evt)
@@ -944,7 +948,6 @@ function canvas_middle_mousemove(evt)
 	if ( level != zoom_level )
 		zoom_set(level, relativeX, zoom_center_where_calc(evt.pageX));
 
-	evt.preventDefault();	
 }
 
 function canvas_container_mouseout(evt)
@@ -954,11 +957,13 @@ function canvas_container_mouseout(evt)
 
 function canvas_mouseup(evt)
 {
-	if (evt.which == 1) {
+	if (isLeftMouseButton(evt)) {
 		canvas_left_mouseup(evt);
-	} else if (evt.which == 2) {
+	} else if (isMiddleMouseButton(evt)) {
 		canvas_middle_mouseup(evt);
 	}
+
+	evt.preventDefault();
 }
 
 function canvas_left_mouseup(evt)
@@ -999,16 +1004,11 @@ function zoom_center_where_calc(screenposX)
 function canvas_mousewheel(evt)
 {
 	if(!waterfall_setup_done) return;
-	//var i=Math.abs(evt.wheelDelta);
-	//var dir=(i/evt.wheelDelta)<0;
-	//console.log(evt);
 	var relativeX=(evt.offsetX)?evt.offsetX:evt.layerX;
 	var dir=(evt.deltaY/Math.abs(evt.deltaY))>0;
-	//console.log(dir);
-	//i/=120;
-	/*while (i--)*/ zoom_step(dir, relativeX, zoom_center_where_calc(evt.pageX));
+	zoom_step(dir, relativeX, zoom_center_where_calc(evt.pageX));
+
 	evt.preventDefault();	
-	//evt.returnValue = false; //disable scrollbar move
 }
 
 
@@ -1039,7 +1039,8 @@ function mkzoomlevels()
 
 function zoom_set(level, where, onscreen)
 {
-	if( level < 0 || level >= zoom_levels_count) return;
+	if( level < 0 || level >= zoom_levels_count)
+		return;
 
 	zoom_level = level;
 
@@ -1049,7 +1050,8 @@ function zoom_set(level, where, onscreen)
 
 function zoom_step(out, where, onscreen)
 {
-	if((out&&zoom_level==0)||(!out&&zoom_level>=zoom_levels_count-1)) return;
+	if((out&&zoom_level==0)||(!out&&zoom_level>=zoom_levels_count-1))
+		return;
 	
 	if(out)
 		--zoom_level;
@@ -1615,12 +1617,11 @@ function add_canvas()
 	new_canvas.style.top=new_canvas.openwebrx_top.toString()+"px";
 	canvas_context = new_canvas.getContext("2d");
 	canvas_container.appendChild(new_canvas);
-	//new_canvas.addEventListener("mouseover", canvas_mouseover, false);
-	//new_canvas.addEventListener("mouseout", canvas_mouseout, false);
 	new_canvas.addEventListener("mousemove", canvas_mousemove, false);
 	new_canvas.addEventListener("mouseup", canvas_mouseup, false);
 	new_canvas.addEventListener("mousedown", canvas_mousedown, false);
 	new_canvas.addEventListener("wheel",canvas_mousewheel, false);
+	new_canvas.addEventListener("click",canvas_mouseclick, false);
 	canvases.push(new_canvas);
 }
 
@@ -1628,15 +1629,12 @@ function init_canvas_container()
 {
 	canvas_container=e("webrx-canvas-container");
 	canvas_container.addEventListener("mouseout",canvas_container_mouseout, false);
-	//window.addEventListener("mouseout",window_mouseout,false);
-	//document.body.addEventListener("mouseup",body_mouseup,false);
 	canvas_phantom=e("openwebrx-phantom-canvas");
-	//canvas_phantom.addEventListener("mouseover", canvas_mouseover, false);
-	//canvas_phantom.addEventListener("mouseout", canvas_mouseout, false);
 	canvas_phantom.addEventListener("mousemove", canvas_mousemove, false);
 	canvas_phantom.addEventListener("mouseup", canvas_mouseup, false);
 	canvas_phantom.addEventListener("mousedown", canvas_mousedown, false);
 	canvas_phantom.addEventListener("wheel",canvas_mousewheel, false);
+	canvas_phantom.addEventListener("click",canvas_mouseclick, false);
 	canvas_phantom.style.width=canvas_container.clientWidth+"px";
 	add_canvas();
 }
