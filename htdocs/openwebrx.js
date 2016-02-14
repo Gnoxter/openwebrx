@@ -530,7 +530,7 @@ function scale_setup()
 }
 
 var scale_canvas_drag_params={
-	mouse_down: false,
+	left_mouse_down: false,
 	drag: false,
 	start_x: 0,
 	key_modifiers: {shiftKey:false, altKey: false, ctrlKey: false}
@@ -540,7 +540,7 @@ function scale_canvas_mousedown(evt)
 {
 	with(scale_canvas_drag_params)
 	{
-		mouse_down=true;
+		left_mouse_down=true;
 		drag=false;
 		start_x=evt.pageX;
 		key_modifiers.shiftKey=evt.shiftKey;
@@ -559,7 +559,7 @@ function scale_offset_freq_from_px(x, visible_range)
 function scale_canvas_mousemove(evt)
 {
 	var event_handled;
-	if(scale_canvas_drag_params.mouse_down&&!scale_canvas_drag_params.drag&&Math.abs(evt.pageX-scale_canvas_drag_params.start_x)>canvas_drag_min_delta) 
+	if(scale_canvas_drag_params.left_mouse_down&&!scale_canvas_drag_params.drag&&Math.abs(evt.pageX-scale_canvas_drag_params.start_x)>canvas_drag_min_delta) 
 	//we can use the main drag_min_delta thing of the main canvas
 	{
 		scale_canvas_drag_params.drag=true;
@@ -580,7 +580,7 @@ function scale_canvas_end_drag(x)
 {
 	canvas_container.style.cursor="default";
 	scale_canvas_drag_params.drag=false;
-	scale_canvas_drag_params.mouse_down=false;
+	scale_canvas_drag_params.left_mouse_down=false;
 	var event_handled=false;
 	for (var i=0;i<demodulators.length;i++) event_handled|=demodulators[i].envelope.drag_end(x);
 	//console.log(event_handled);
@@ -784,6 +784,7 @@ function resize_scale()
 	mkscale();
 }
 
+/*
 function canvas_mouseover(evt)
 {
 	if(!waterfall_setup_done) return;
@@ -795,6 +796,7 @@ function canvas_mouseout(evt)
 	if(!waterfall_setup_done) return;
 	//e("webrx-freq-show").style.visibility="hidden";
 }
+*/
 
 function canvas_get_freq_offset(relativeX)
 {
@@ -827,18 +829,53 @@ function format_frequency(format, freq_hz, pre_divide, decimals)
 
 canvas_drag=false;
 canvas_drag_min_delta=1;
-canvas_mouse_down=false;
+canvas_left_mouse_down=false;
+canvas_middle_mouse_down=false;
 
-function canvas_mousedown(evt)
+function canvas_mousedown(evt) {
+
+	if (evt.which == 1) {
+		canvas_left_mousedown(evt);
+	} else if (evt.which == 2) {
+		canvas_middle_mousedown(evt);
+	}
+}
+
+
+function canvas_left_mousedown(evt)
 {
-	canvas_mouse_down=true;
+	canvas_left_mouse_down=true;
 	canvas_drag=false;
 	canvas_drag_last_x=canvas_drag_start_x=evt.pageX;
 	canvas_drag_last_y=canvas_drag_start_y=evt.pageY;
 	evt.preventDefault(); //don't show text selection mouse pointer
 }
 
+
+function canvas_middle_mousedown(evt)
+{
+	canvas_middle_mouse_down=true;
+	canvas_zoom_start_level = zoom_level;
+	canvas_zoom_start_y = evt.clientY - evt.target.parentNode.getBoundingClientRect().top;;
+	evt.preventDefault(); //don't show text selection mouse pointer
+}
+
+
+
 function canvas_mousemove(evt)
+{
+	if (evt.which == 1)
+	{
+		canvas_left_mousemove(evt);
+	}
+	else if (evt.which == 2)
+	{
+		canvas_middle_mousemove(evt);
+	}	
+
+}
+
+function canvas_left_mousemove(evt)
 {
 	if(!waterfall_setup_done) return;
 	//element=e("webrx-freq-show");
@@ -848,7 +885,7 @@ function canvas_mousemove(evt)
 	if(realX>maxX) realX=maxX;
 	if(realX<0) realX=0;
 	element.style.left=realX.toString()+"px";*/
-	if(canvas_mouse_down)
+	if(canvas_left_mouse_down)
 	{
 		if(!canvas_drag&&Math.abs(evt.pageX-canvas_drag_start_x)>canvas_drag_min_delta) 
 		{
@@ -872,7 +909,38 @@ function canvas_mousemove(evt)
 			mkscale();
 		}
 	}
-	else e("webrx-mouse-freq").innerHTML=format_frequency("{x} MHz",canvas_get_frequency(relativeX),1e6,4);
+	else
+	{ 
+		e("webrx-mouse-freq").innerHTML=format_frequency("{x} MHz",canvas_get_frequency(relativeX),1e6,4);
+	}
+}
+
+function canvas_middle_mousemove(evt)
+{
+	if(!canvas_middle_mouse_down) return;
+	if(!waterfall_setup_done) return;
+
+	var level = zoom_level;
+	var relativeX = (evt.offsetX) ? evt.offsetX : evt.layerX;
+	var offsetY = evt.clientY - evt.target.parentNode.getBoundingClientRect().top;
+
+	if ( canvas_zoom_start_y < offsetY && canvas_zoom_start_level > 0) {
+		var range = window.innerHeight - evt.target.parentNode.getBoundingClientRect().top  - canvas_zoom_start_y;
+		var steps = range/canvas_zoom_start_level;
+		var d_over_s = Math.ceil(( offsetY - canvas_zoom_start_y)/steps);
+		level = canvas_zoom_start_level - d_over_s;
+
+	} else {
+		var steps = canvas_zoom_start_y/(zoom_levels_count-canvas_zoom_start_level);
+		var d_over_s = Math.ceil((canvas_zoom_start_y - offsetY)/steps);
+		level = canvas_zoom_start_level + d_over_s
+
+	}
+
+	if ( level != zoom_level )
+		zoom_set(level, relativeX, zoom_center_where_calc(evt.pageX));
+
+	evt.preventDefault();	
 }
 
 function canvas_container_mouseout(evt)
@@ -880,10 +948,16 @@ function canvas_container_mouseout(evt)
 	canvas_end_drag();
 }
 
-//function body_mouseup() { canvas_end_drag(); console.log("body_mouseup"); }
-//function window_mouseout() { canvas_end_drag(); console.log("document_mouseout"); }
-
 function canvas_mouseup(evt)
+{
+	if (evt.which == 1) {
+		canvas_left_mouseup(evt);
+	} else if (evt.which == 2) {
+		canvas_middle_mouseup(evt);
+	}
+}
+
+function canvas_left_mouseup(evt)
 {
 	if(!waterfall_setup_done) return;
 	relativeX=(evt.offsetX)?evt.offsetX:evt.layerX;
@@ -898,13 +972,18 @@ function canvas_mouseup(evt)
 	{
 		canvas_end_drag();
 	}
-	canvas_mouse_down=false;
+	canvas_left_mouse_down=false;
+}
+
+function canvas_middle_mouseup(evt)
+{
+	canvas_middle_mouse_down = false;
 }
 
 function canvas_end_drag()
 {
 	canvas_container.style.cursor="crosshair";
-	canvas_mouse_down=false;
+	canvas_left_mouse_down=false;
 }
 
 function zoom_center_where_calc(screenposX)
@@ -954,18 +1033,37 @@ function mkzoomlevels()
 		zoom_levels.push(1+(maxc-1)*(i/(zoom_levels_count-1)));
 }
 
+function zoom_set(level, where, onscreen)
+{
+	if( level < 0 || level >= zoom_levels_count) return;
+
+	zoom_level = level;
+
+	zoom_update(where, onscreen);
+}
+
+
 function zoom_step(out, where, onscreen)
 {
 	if((out&&zoom_level==0)||(!out&&zoom_level>=zoom_levels_count-1)) return;
 	
-	if(out) --zoom_level;
-	else ++zoom_level;
+	if(out)
+		--zoom_level;
+	else
+		++zoom_level;
+
+	zoom_update(where, onscreen);
+}
+
+function zoom_update(where, onscreen)
+{
 	zoom_center_rel=canvas_get_freq_offset(where);
-	//console.log("zoom_step || zlevel: "+zoom_level.toString()+" zlevel_val: "+zoom_levels[zoom_level].toString()+" zoom_center_rel: "+zoom_center_rel.toString());
+	console.log("zoom_update || zlevel: "+zoom_level.toString()+" zlevel_val: "+zoom_levels[zoom_level].toString()+" zoom_center_rel: "+zoom_center_rel.toString());
 	zoom_center_where=onscreen;
 	resize_canvases(true);
 	mkscale();
 }
+
 
 function zoom_calc()
 {
@@ -1512,8 +1610,8 @@ function add_canvas()
 	new_canvas.style.top=new_canvas.openwebrx_top.toString()+"px";
 	canvas_context = new_canvas.getContext("2d");
 	canvas_container.appendChild(new_canvas);
-	new_canvas.addEventListener("mouseover", canvas_mouseover, false);
-	new_canvas.addEventListener("mouseout", canvas_mouseout, false);
+	//new_canvas.addEventListener("mouseover", canvas_mouseover, false);
+	//new_canvas.addEventListener("mouseout", canvas_mouseout, false);
 	new_canvas.addEventListener("mousemove", canvas_mousemove, false);
 	new_canvas.addEventListener("mouseup", canvas_mouseup, false);
 	new_canvas.addEventListener("mousedown", canvas_mousedown, false);
@@ -1528,8 +1626,8 @@ function init_canvas_container()
 	//window.addEventListener("mouseout",window_mouseout,false);
 	//document.body.addEventListener("mouseup",body_mouseup,false);
 	canvas_phantom=e("openwebrx-phantom-canvas");
-	canvas_phantom.addEventListener("mouseover", canvas_mouseover, false);
-	canvas_phantom.addEventListener("mouseout", canvas_mouseout, false);
+	//canvas_phantom.addEventListener("mouseover", canvas_mouseover, false);
+	//canvas_phantom.addEventListener("mouseout", canvas_mouseout, false);
 	canvas_phantom.addEventListener("mousemove", canvas_mousemove, false);
 	canvas_phantom.addEventListener("mouseup", canvas_mouseup, false);
 	canvas_phantom.addEventListener("mousedown", canvas_mousedown, false);
